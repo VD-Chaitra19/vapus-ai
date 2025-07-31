@@ -1,8 +1,32 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Header from "../components/platform/header";
-import ReactECharts from "echarts-for-react";
-import "react-datepicker/dist/react-datepicker.css";
+import * as echarts from "echarts";
+
+const Chart = ({ option, style }) => {
+  const chartRef = useRef(null);
+
+  useEffect(() => {
+    let chartInstance = null;
+    if (chartRef.current) {
+      chartInstance = echarts.init(chartRef.current);
+      chartInstance.setOption(option);
+    }
+
+    const handleResize = () => {
+      chartInstance?.resize();
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      chartInstance?.dispose();
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [option]);
+
+  return <div ref={chartRef} style={style} />;
+};
 
 const formatNumber = (num) => {
   if (num === null || num === undefined) return 0;
@@ -77,7 +101,7 @@ const ToolsPieChart = ({ chartData }) => {
     };
   };
 
-  return <ReactECharts option={getChartOptions()} style={{ height: "100%", width: "100%" }} />;
+  return <Chart option={getChartOptions()} style={{ height: "100%", width: "100%" }} />;
 };
 
 const CacheChart = ({ chartData, chartName, timeRange, latencyMetric }) => {
@@ -351,7 +375,7 @@ const CacheChart = ({ chartData, chartName, timeRange, latencyMetric }) => {
     };
   };
 
-  return <ReactECharts option={getCacheChartOptions(chartName)} style={{ height: "100%", width: "100%" }} />;
+  return <Chart option={getCacheChartOptions(chartName)} style={{ height: "100%", width: "100%" }} />;
 };
 
 const getStartDate = (timeRange) => {
@@ -853,6 +877,59 @@ export default function Dashboard({ backListingLink = "./" }) {
           hideBackListingLink={true}
           backListingLink={backListingLink}
         />
+        <style jsx global>{`
+          .react-datepicker {
+            background-color: #27272a;
+            border: 1px solid #3f3f46;
+            color: #fff;
+            border-radius: 0.375rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          }
+          .react-datepicker__header {
+            background-color: #18181b;
+            border-bottom: 1px solid #3f3f46;
+            border-top-left-radius: 0.375rem;
+            border-top-right-radius: 0.375rem;
+            padding: 0.5rem;
+          }
+          .react-datepicker__current-month {
+            color: #fff;
+            font-weight: 600;
+          }
+          .react-datepicker__day-name,
+          .react-datepicker__day {
+            width: 2.5rem;
+            height: 2.5rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9999px;
+          }
+          .react-datepicker__day:hover {
+            background-color: #3f3f46;
+          }
+          .react-datepicker__day--selected {
+            background-color: #f97316;
+            color: #fff;
+          }
+          .react-datepicker__day--keyboard-selected {
+            background-color: #ea580c;
+            color: #fff;
+          }
+          .react-datepicker__day--disabled {
+            color: #52525b;
+            cursor: not-allowed;
+          }
+          .react-datepicker__navigation {
+            top: 1rem;
+          }
+          .react-datepicker__navigation--previous {
+            border-right-color: #fff;
+          }
+          .react-datepicker__navigation--next {
+            border-left-color: #fff;
+          }
+        `}</style>
 
         <div className="flex-grow p-4 overflow-y-auto scrollbar">
           <div className="container mx-auto p-2 space-y-6">
@@ -935,7 +1012,7 @@ export default function Dashboard({ backListingLink = "./" }) {
                   <h3 className="text-lg font-semibold mb-2">Cost</h3>
                   <p className="text-3xl font-bold">${summary.cost}</p>
                   <div className="h-80 mt-4">
-                    <ReactECharts
+                    <Chart
                       option={getChartOptions("cost")}
                       style={{ height: "100%", width: "100%" }}
                     />
@@ -945,7 +1022,7 @@ export default function Dashboard({ backListingLink = "./" }) {
                   <h3 className="text-lg font-semibold mb-2">Tokens Used</h3>
                   <p className="text-3xl font-bold">{summary.tokensUsed}</p>
                   <div className="h-80 mt-4">
-                    <ReactECharts
+                    <Chart
                       option={getChartOptions("tokensUsed")}
                       style={{ height: "100%", width: "100%" }}
                     />
@@ -967,7 +1044,7 @@ export default function Dashboard({ backListingLink = "./" }) {
                   </div>
                   <p className="text-3xl font-bold">{summary.latency}ms</p>
                   <div className="h-80 mt-4">
-                    <ReactECharts
+                    <Chart
                       option={getChartOptions("latency")}
                       style={{ height: "100%", width: "100%" }}
                     />
@@ -977,7 +1054,7 @@ export default function Dashboard({ backListingLink = "./" }) {
                   <h3 className="text-lg font-semibold mb-2">Requests</h3>
                   <p className="text-3xl font-bold">{summary.requests}</p>
                   <div className="h-80 mt-4">
-                    <ReactECharts
+                    <Chart
                       option={getChartOptions("requests")}
                       style={{ height: "100%", width: "100%" }}
                     />
