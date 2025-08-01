@@ -29,9 +29,7 @@ export const setAccessToken = (token) => {
 
 // Function to get the current access token
 export const getAccessToken = () => {
-  if (!accessToken) {
-    initializeAccessToken();
-  }
+  initializeAccessToken();
   return accessToken;
 };
 
@@ -187,7 +185,7 @@ export const fetchApi = async (endpoint, method, payload, options = {}) => {
   // Ensure we have the latest token from cookies
   const currentToken = getAccessToken();
 
-  const fullUrl = `${BASE_URL}${endpoint}`;
+  const fullUrl = endpoint.startsWith("http") ? endpoint : `${BASE_URL}${endpoint}`;
   
   // Create default headers
   const defaultHeaders = {

@@ -1,403 +1,13 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Header from "../components/platform/header";
-import * as echarts from "echarts";
-
-const Chart = ({ option, style }) => {
-  const chartRef = useRef(null);
-
-  useEffect(() => {
-    let chartInstance = null;
-    if (chartRef.current) {
-      chartInstance = echarts.init(chartRef.current);
-      chartInstance.setOption(option);
-    }
-
-    const handleResize = () => {
-      chartInstance?.resize();
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      chartInstance?.dispose();
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [option]);
-
-  return <div ref={chartRef} style={style} />;
-};
-
-const formatNumber = (num) => {
-  if (num === null || num === undefined) return 0;
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1).replace(/\.0$/, "") + "K";
-  }
-  return Math.round(num);
-};
-
-const ToolsPieChart = ({ chartData }) => {
-  const getChartOptions = () => {
-    if (!chartData || !chartData.toolUsage) return {};
-    return {
-      tooltip: {
-        trigger: 'item',
-        backgroundColor: 'rgba(39, 39, 42, 0.9)',
-        borderColor: '#52525b',
-        textStyle: {
-          color: '#fff'
-        },
-        formatter: function (params) {
-          if (!params) {
-            return '';
-          }
-          const { name, value, percent } = params;
-          let tooltipHtml = `<div style="text-align: left;">`;
-          tooltipHtml += `<div style="font-size: 12px; color: #a1a1aa; margin-bottom: 4px;">${name}</div>`;
-          tooltipHtml += `<div style="font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 8px;">${formatNumber(value)} (${percent}%)</div>`;
-          tooltipHtml += `</div>`;
-          return tooltipHtml;
-        }
-      },
-      legend: {
-        orient: 'vertical',
-        left: 10,
-        data: chartData.toolUsage.labels,
-        itemGap: 15,
-        textStyle: {
-          color: '#fff'
-        }
-      },
-      series: [
-        {
-          name: 'Tool Usage',
-          type: 'pie',
-          radius: '75%',
-          avoidLabelOverlap: false,
-          label: {
-            show: true,
-            position: 'outside',
-            formatter: '{b}'
-          },
-          labelLine: {
-            show: true
-          },
-          data: chartData.toolUsage.labels.map((label, index) => ({
-            name: label,
-            value: chartData.toolUsage.data[index],
-            label: {
-              show: true,
-              position: 'inside',
-              formatter: '{c} ({d}%)',
-              color: '#fff',
-              fontSize: 14
-            }
-          }))
-        }
-      ]
-    };
-  };
-
-  return <Chart option={getChartOptions()} style={{ height: "100%", width: "100%" }} />;
-};
-
-const CacheChart = ({ chartData, chartName, timeRange, latencyMetric }) => {
-  const getCacheChartOptions = (chartName) => {
-    if (!chartData || !chartData[chartName]) return {};
-
-    const data = chartData[chartName];
-    const startDate = getStartDate(timeRange);
-    const bucketSize = getBucketSize(timeRange);
-
-    const aggregateData = (data, bucketSize, startDate) => {
-      const aggregated = {};
-      const labels = [];
-      const values = [];
-      const originalDates = [];
-
-      const formatLabel = (date, bucketSize) => {
-        if (bucketSize === "second") return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        if (bucketSize === "minute") return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        if (bucketSize === "hour") return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        if (bucketSize === "day") return date.toLocaleDateString();
-        if (bucketSize === "month") return `${date.getFullYear()}-${date.getMonth() + 1}`;
-        if (bucketSize === "year") return date.getFullYear();
-        return date.toLocaleDateString();
-      };
-
-      const filteredData = {
-        labels: [],
-        data: data.data ? [] : undefined,
-        series: data.series ? data.series.map(s => ({ ...s, data: [] })) : undefined,
-      };
-
-      data.labels.forEach((label, index) => {
-        const date = new Date(label);
-        if (date >= startDate) {
-          filteredData.labels.push(label);
-          if (filteredData.data) {
-            filteredData.data.push(data.data[index]);
-          }
-          if (filteredData.series) {
-            filteredData.series.forEach((s, i) => {
-              s.data.push(data.series[i].data[index]);
-            });
-          }
-        }
-      });
-
-      if (filteredData.labels.length === 0) {
-        return { labels: [], data: [], originalDates: [] };
-      }
-
-      filteredData.labels.forEach((label, index) => {
-        const date = new Date(label);
-        let bucketKey;
-
-        if (bucketSize === "second") bucketKey = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds()).toISOString();
-        else if (bucketSize === "minute") bucketKey = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), date.getMinutes()).toISOString();
-        else if (bucketSize === "hour") bucketKey = new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()).toISOString();
-        else if (bucketSize === "day") bucketKey = new Date(date.getFullYear(), date.getMonth(), date.getDate()).toISOString();
-        else if (bucketSize === "month") bucketKey = new Date(date.getFullYear(), date.getMonth()).toISOString();
-        else if (bucketSize === "year") bucketKey = new Date(date.getFullYear(), 0).toISOString();
-
-        if (!aggregated[bucketKey]) {
-          aggregated[bucketKey] = {
-            label: formatLabel(date, bucketSize),
-            date: date,
-            values: [],
-            series: {},
-          };
-        }
-        
-        if (filteredData.data) {
-          aggregated[bucketKey].values.push(filteredData.data[index]);
-        }
-        if (filteredData.series) {
-          filteredData.series.forEach((s, i) => {
-            if (!aggregated[bucketKey].series[s.name]) {
-              aggregated[bucketKey].series[s.name] = [];
-            }
-            aggregated[bucketKey].series[s.name].push(s.data[index]);
-          });
-        }
-      });
-
-      const sortedKeys = Object.keys(aggregated).sort();
-
-      sortedKeys.forEach(key => {
-        labels.push(aggregated[key].label);
-        originalDates.push(aggregated[key].date);
-        if (chartName === 'cacheHitRate') {
-            const sum = aggregated[key].values.reduce((a, b) => a + b, 0);
-            values.push(sum / aggregated[key].values.length);
-        } else if (data.data) {
-          values.push(aggregated[key].values.reduce((a, b) => a + b, 0));
-        } else if (data.series) {
-          const seriesValues = {};
-          for (const seriesName in aggregated[key].series) {
-            seriesValues[seriesName] = aggregated[key].series[seriesName].reduce((a, b) => a + b, 0);
-          }
-          values.push(seriesValues);
-        }
-      });
-
-      return { labels, data: values, originalDates };
-    };
-    
-    const aggregatedData = aggregateData(data, bucketSize, startDate);
-
-    let chartOptions = {};
-
-    switch (chartName) {
-      case 'cacheHits':
-        chartOptions = {
-          series: data.series.map((s, i) => ({
-            name: s.name,
-            type: 'bar',
-            stack: 'total',
-            data: aggregatedData.data.map(d => d[s.name] || 0),
-            itemStyle: {
-              color: i === 0 ? '#22c55e' : '#a3e635',
-            },
-          })),
-          tooltip: {
-            trigger: 'axis',
-            backgroundColor: 'rgba(39, 39, 42, 0.9)',
-            borderColor: '#52525b',
-            textStyle: {
-              color: '#fff'
-            },
-            formatter: function (params) {
-              if (!params || params.length === 0) {
-                return '';
-              }
-              const date = aggregatedData.originalDates[params[0].dataIndex];
-              const formattedDate = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-              const formattedTime = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-              const dateTimeString = `${formattedDate}, ${formattedTime}`;
-
-              let tooltipHtml = `<div style="text-align: left;">`;
-              const simpleHitParam = params.find(p => p.seriesName === 'Simple Hit');
-              const semanticHitParam = params.find(p => p.seriesName === 'Semantic Hit');
-              const simpleHit = simpleHitParam ? simpleHitParam.value : 0;
-              const semanticHit = semanticHitParam ? semanticHitParam.value : 0;
-
-              tooltipHtml += `<div style="font-size: 12px; color: #a1a1aa; margin-bottom: 4px;">Simple Hit</div>`;
-              tooltipHtml += `<div style="font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 8px;">${formatNumber(simpleHit)}</div>`;
-              tooltipHtml += `<div style="font-size: 12px; color: #a1a1aa; margin-bottom: 4px;">Semantic Hit</div>`;
-              tooltipHtml += `<div style="font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 8px;">${formatNumber(semanticHit)}</div>`;
-              tooltipHtml += `<div style="font-size: 12px; color: #71717a;">${dateTimeString}</div>`;
-              tooltipHtml += `</div>`;
-              return tooltipHtml;
-            }
-          }
-        };
-        break;
-      case 'cacheSpeedup':
-        chartOptions = {
-          tooltip: {
-            show: true
-          },
-          series: [{
-            type: 'gauge',
-            detail: { show: false },
-            data: [{ value: data.avgLatency }],
-            pointer: {
-              show: true,
-              itemStyle: {
-                color: '#F59E0B'
-              }
-            },
-            axisLine: {
-              lineStyle: {
-                width: 30,
-                color: [[0.3, '#6EE7B7'], [0.7, '#34D399'], [1, '#10B981']]
-              }
-            }
-          }]
-        };
-        break;
-      case 'cacheHitRate':
-        chartOptions = {
-          series: [{
-            type: 'line',
-            data: aggregatedData.data,
-            smooth: true,
-            itemStyle: { color: '#F59E0B' }
-          }],
-          tooltip: {
-            trigger: 'axis',
-            backgroundColor: 'rgba(39, 39, 42, 0.9)',
-            borderColor: '#52525b',
-            textStyle: {
-              color: '#fff'
-            },
-            formatter: function (params) {
-              if (!params || params.length === 0) {
-                return '';
-              }
-              const date = aggregatedData.originalDates[params[0].dataIndex];
-              const formattedDate = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-              const formattedTime = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-              const dateTimeString = `${formattedDate}, ${formattedTime}`;
-              return `<strong>Hit Rate</strong><br/>${params[0].data.toFixed(1)}%<br/>${dateTimeString}`;
-            }
-          }
-        };
-        break;
-      case 'cacheSavings':
-        chartOptions = {
-          series: data.series.map((s, i) => ({
-            name: s.name,
-            type: 'bar',
-            stack: 'total',
-            data: aggregatedData.data.map(d => d[s.name] || 0),
-            itemStyle: {
-              color: i === 0 ? '#22c55e' : '#a3e635',
-            },
-          })),
-          tooltip: {
-            trigger: 'axis',
-            backgroundColor: 'rgba(39, 39, 42, 0.9)',
-            borderColor: '#52525b',
-            textStyle: {
-              color: '#fff'
-            },
-            formatter: function (params) {
-              if (!params || params.length === 0) {
-                return '';
-              }
-              const date = aggregatedData.originalDates[params[0].dataIndex];
-              const formattedDate = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-              const formattedTime = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-              const dateTimeString = `${formattedDate}, ${formattedTime}`;
-
-              let tooltipHtml = `<div style="text-align: left;">`;
-              const simpleHitParam = params.find(p => p.seriesName === 'Simple Hit Savings');
-              const semanticHitParam = params.find(p => p.seriesName === 'Semantic Hit Savings');
-              const simpleHit = simpleHitParam ? simpleHitParam.value : 0;
-              const semanticHit = semanticHitParam ? semanticHitParam.value : 0;
-
-              tooltipHtml += `<div style="font-size: 12px; color: #a1a1aa; margin-bottom: 4px;">Simple Hit Savings</div>`;
-              tooltipHtml += `<div style="font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 8px;">$${simpleHit.toFixed(2)}</div>`;
-              tooltipHtml += `<div style="font-size: 12px; color: #a1a1aa; margin-bottom: 4px;">Semantic Hit Savings</div>`;
-              tooltipHtml += `<div style="font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 8px;">$${semanticHit.toFixed(2)}</div>`;
-              tooltipHtml += `<div style="font-size: 12px; color: #71717a;">${dateTimeString}</div>`;
-              tooltipHtml += `</div>`;
-              return tooltipHtml;
-            }
-          }
-        };
-        break;
-      default:
-        chartOptions = {};
-    }
-
-    return {
-      ...chartOptions,
-      xAxis: {
-        type: 'category',
-        data: aggregatedData.labels
-      },
-      yAxis: {
-        type: 'value',
-        splitLine: {
-          lineStyle: {
-            color: "#444",
-          },
-        },
-      },
-      grid: { top: '10%', bottom: '15%', left: '10%', right: '5%' }
-    };
-  };
-
-  return <Chart option={getCacheChartOptions(chartName)} style={{ height: "100%", width: "100%" }} />;
-};
-
-const getStartDate = (timeRange) => {
-  const now = new Date();
-  if (timeRange === "1m") return new Date(now.getTime() - 60 * 1000);
-  if (timeRange === "1h") return new Date(now.getTime() - 60 * 60 * 1000);
-  if (timeRange === "24h") return new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  if (timeRange === "7d") return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  if (timeRange === "15d") return new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
-  if (timeRange === "30d") return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  if (timeRange === "1y") return new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-  return new Date(now.getTime() - 24 * 60 * 60 * 1000);
-};
-
-const getBucketSize = (timeRange) => {
-  if (timeRange === "1m") return "second";
-  if (timeRange === "1h") return "minute";
-  if (timeRange === "24h" || timeRange === "7d" || timeRange === "15d") return "hour";
-  if (timeRange === "30d") return "day";
-  if (timeRange === "1y") return "month";
-  return "hour";
-};
+import Chart from "../components/Chart";
+import PieChart from "../components/PieChart";
+import CacheChart from "../components/CacheChart";
+import { formatNumber } from "../utils/formatNumber";
+import { getStartDate, getBucketSize, formatLabel } from "../utils/dateHelpers";
+import { fetchApi } from "../utils/api";
+import "../styles/datepicker.css";
 
 export default function Dashboard({ backListingLink = "./" }) {
   const [activeTab, setActiveTab] = useState("overview");
@@ -405,10 +15,13 @@ export default function Dashboard({ backListingLink = "./" }) {
   const [timeRange, setTimeRange] = useState("24h");
   const [latencyMetric, setLatencyMetric] = useState("average");
 
-  const fetchData = () => {
-    fetch("/api/chartdata")
-      .then((response) => response.json())
-      .then((data) => setChartData(data));
+  const fetchData = async () => {
+    try {
+      const data = await fetchApi("http://127.0.0.1:9014/api/chartdata", "GET");
+      setChartData(data);
+    } catch (error) {
+      console.error("Error fetching chart data:", error);
+    }
   };
 
   useEffect(() => {
@@ -655,16 +268,6 @@ export default function Dashboard({ backListingLink = "./" }) {
       const values = [];
       const originalDates = [];
 
-      const formatLabel = (date, bucketSize) => {
-        if (bucketSize === "second") return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        if (bucketSize === "minute") return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        if (bucketSize === "hour") return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        if (bucketSize === "day") return date.toLocaleDateString();
-        if (bucketSize === "month") return `${date.getFullYear()}-${date.getMonth() + 1}`;
-        if (bucketSize === "year") return date.getFullYear();
-        return date.toLocaleDateString();
-      };
-
       const filteredData = {
         labels: [],
         data: data.data ? [] : undefined,
@@ -877,59 +480,6 @@ export default function Dashboard({ backListingLink = "./" }) {
           hideBackListingLink={true}
           backListingLink={backListingLink}
         />
-        <style jsx global>{`
-          .react-datepicker {
-            background-color: #27272a;
-            border: 1px solid #3f3f46;
-            color: #fff;
-            border-radius: 0.375rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-          }
-          .react-datepicker__header {
-            background-color: #18181b;
-            border-bottom: 1px solid #3f3f46;
-            border-top-left-radius: 0.375rem;
-            border-top-right-radius: 0.375rem;
-            padding: 0.5rem;
-          }
-          .react-datepicker__current-month {
-            color: #fff;
-            font-weight: 600;
-          }
-          .react-datepicker__day-name,
-          .react-datepicker__day {
-            width: 2.5rem;
-            height: 2.5rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 9999px;
-          }
-          .react-datepicker__day:hover {
-            background-color: #3f3f46;
-          }
-          .react-datepicker__day--selected {
-            background-color: #f97316;
-            color: #fff;
-          }
-          .react-datepicker__day--keyboard-selected {
-            background-color: #ea580c;
-            color: #fff;
-          }
-          .react-datepicker__day--disabled {
-            color: #52525b;
-            cursor: not-allowed;
-          }
-          .react-datepicker__navigation {
-            top: 1rem;
-          }
-          .react-datepicker__navigation--previous {
-            border-right-color: #fff;
-          }
-          .react-datepicker__navigation--next {
-            border-left-color: #fff;
-          }
-        `}</style>
 
         <div className="flex-grow p-4 overflow-y-auto scrollbar">
           <div className="container mx-auto p-2 space-y-6">
@@ -945,7 +495,7 @@ export default function Dashboard({ backListingLink = "./" }) {
                       key={tab.ItemId}
                       href={tab.Url}
                       data-page={tab.ItemId}
-                      className={`nav-button px-4 py-2 text-sm font-medium text-gray-400 text-center flex items-center gap-2 ${
+                      className={`nav-button px-4 py-2 text-sm font-medium text-gray-400 text-center flex items-center gap-2 cursor-pointer ${
                         activeTab === tab.ItemId
                           ? "border-b-2 border-orange-500 text-white"
                           : ""
@@ -1006,7 +556,7 @@ export default function Dashboard({ backListingLink = "./" }) {
                 </select>
               </div>
             </div>
-            {activeTab === "overview" && (
+            {activeTab === "overview" && chartData && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                 <div className="lg:col-span-1 md:col-span-1 rounded-lg shadow-lg p-4 border border-zinc-500">
                   <h3 className="text-lg font-semibold mb-2">Cost</h3>
@@ -1066,7 +616,11 @@ export default function Dashboard({ backListingLink = "./" }) {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                 <div className="lg:col-span-1 md:col-span-1 rounded-lg shadow-lg p-4 border border-zinc-500">
                   <div className="h-80 mt-4">
-                    <ToolsPieChart chartData={chartData} />
+                    <PieChart
+                      chartData={chartData?.toolUsage?.data}
+                      name="Tool Usage"
+                      labels={chartData?.toolUsage?.labels}
+                    />
                   </div>
                 </div>
               </div>
