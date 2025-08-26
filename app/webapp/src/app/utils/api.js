@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 export let accessToken = "";
 const BASE_URL = "http://127.0.0.1:9017";
 
@@ -217,7 +218,10 @@ export const fetchApi = async (endpoint, method, payload, options = {}) => {
 
   const response = await fetch(fullUrl, defaultOptions);
   if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
+    const errorData = await response.json().catch(() => ({}));
+    const errorMessage = errorData.message || `API error: ${response.status}`;
+    toast.error(errorMessage);
+    throw new Error(errorMessage);
   }
 
   // Get response as text first

@@ -259,6 +259,53 @@ const Sidebar = () => {
         },
       ],
     },
+    // Small Dataset
+    {
+      itemId: "small-dataset",
+      itemName: "Small Dataset",
+      url: "/small-dataset",
+      svg: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          className="h-5 w-5 m-1"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="8" y="14" width="8" height="4" rx="2"></rect> {/* Bottom cylinder */}
+          <rect x="8" y="9" width="8" height="4" rx="2"></rect> {/* Middle cylinder */}
+          <rect x="8" y="4" width="8" height="4" rx="2"></rect> {/* Top cylinder */}
+        </svg>
+      ),
+    },
+    // Large Dataset
+    {
+      itemId: "large-dataset",
+      itemName: "Large Dataset",
+      url: "/large-dataset",
+      svg: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          className="h-5 w-5 m-1"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <ellipse cx="12" cy="18" rx="7" ry="3"></ellipse>
+          <path d="M7 18c0 3.314 4.776 6 5 6s5-2.686 5-6"></path>
+          <ellipse cx="12" cy="12" rx="7" ry="3"></ellipse>
+          <path d="M7 12c0 3.314 4.776 6 5 6s5-2.686 5-6"></path>
+          <ellipse cx="12" cy="6" rx="7" ry="3"></ellipse>
+          <path d="M7 6c0 3.314 4.776 6 5 6s5-2.686 5-6"></path>
+        </svg>
+      ),
+    },
   ];
 
   const bottomMenuMap = [
